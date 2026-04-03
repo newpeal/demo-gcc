@@ -29,6 +29,7 @@ jobs:
       - name: Kjør søk og analyse
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
         run: python search.py
 
       - name: Commit og push resultater

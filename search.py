@@ -1,5 +1,5 @@
 """
-search.py – Søker DuckDuckGo for gårsdagens artikler om «Finsehytta»,
+search.py – Søker Google (via SerpAPI) for gårsdagens artikler om «Finsehytta»,
 henter full artikkeltekst og analyserer med GPT-4o via GitHub Models.
 Skriver resultatet til results/YYYY-MM-DD.json (gårsdagens dato).
 """
@@ -12,7 +12,6 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from duckduckgo_search import DDGS
 from openai import OpenAI
 
 QUERY = "Finsehytta"
@@ -24,17 +23,34 @@ if not GITHUB_TOKEN:
     print("Feil: GITHUB_TOKEN er ikke satt.", file=sys.stderr)
     sys.exit(1)
 
+SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
+if not SERPAPI_KEY:
+    print("Feil: SERPAPI_KEY er ikke satt.", file=sys.stderr)
+    sys.exit(1)
+
 llm = OpenAI(
     base_url="https://models.github.ai/inference",
     api_key=GITHUB_TOKEN,
 )
 
 
-def search_yesterday(query: str) -> list[dict]:
-    """Henter søkeresultater fra gårsdagen via DuckDuckGo."""
-    with DDGS() as ddgs:
-        results = ddgs.text(query, timelimit="d", max_results=MAX_RESULTS)
-    return list(results) if results else []
+def search_google(query: str) -> list[dict]:
+    """Henter søkeresultater fra siste 24 timer via SerpAPI (Google)."""
+    resp = requests.get(
+        "https://serpapi.com/search.json",
+        params={
+            "engine": "google",
+            "q": query,
+            "tbs": "qdr:d",
+            "num": MAX_RESULTS,
+            "hl": "no",
+            "gl": "no",
+            "api_key": SERPAPI_KEY,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json().get("organic_results", [])
 
 
 def fetch_article_text(url: str) -> str:
@@ -88,7 +104,7 @@ def main():
         return
 
     print(f"Søker etter '{QUERY}' (gårsdagens resultater: {date_str}) ...")
-    raw_results = search_yesterday(QUERY)
+    raw_results = search_google(QUERY)
 
     if not raw_results:
         print("Ingen resultater funnet.")
@@ -101,7 +117,7 @@ def main():
 
     enriched = []
     for i, item in enumerate(raw_results, 1):
-        url = item.get("href", "")
+        url = item.get("link", "")
         title = item.get("title", "Uten tittel")
         print(f"  [{i}/{len(raw_results)}] {title[:60]} ...")
 
