@@ -1,0 +1,44 @@
+name: Daily Finsehytta Search
+
+on:
+  schedule:
+    # 07:00 norsk sommertid (CEST = UTC+2) → 05:00 UTC
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  search-and-analyse:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sjekk ut repo
+        uses: actions/checkout@v4
+
+      - name: Sett opp Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer avhengigheter
+        run: pip install -r requirements.txt
+
+      - name: Kjør søk og analyse
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python search.py
+
+      - name: Commit og push resultater
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          if git diff --cached --quiet; then
+            echo "Ingen nye resultater å committe."
+          else
+            git commit -m "chore: legg til søkeresultater $(date -u +%Y-%m-%d)"
+            git push
+          fi
